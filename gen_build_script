@@ -1,0 +1,62 @@
+#!/bin/bash
+
+show_help () {
+
+printf "./gen_build_script SOFTWARE_TYPE SOFTWARE_NAME SOFTWARE_VER BUNDLE_NAME SOURCE_DIR BUILD_OPTIONS DEPENDENCIES \n\n"
+printf "For Example:\n"
+printf " ./gen_build_script LANG PYTHON 2.7.4 Python-2.7.4.tar.bz2 Python-2.7.4 '--with-option:--with-other-option' \"LANG\/COMPILER\/GNU\/4.8.0:LANG\/PYTHON\/2.7.4\" \n"
+}
+
+#SOFTWARE_TYPE="_SOFTWARE_TYPE_"
+#SOFTWARE="_SOFTWARE_NAME_"
+#SOFTWARE_VER="_SOFTWARE_VER_"
+#BUNDLE_NAME="_BUNDLE_NAME_"
+#SOURCE_DIR="_SOURCE_DIR_"
+
+if [[ ${1} == "CORE" && ${2} == "Module-Environment" ]]; then
+  export skipModule="YES"
+  IMMEDIATE="YES"
+elif [ ${1} == "CORE" ]; then
+  export skipModule="YES"
+  IMMEDIATE="YES"
+else
+  export skipModule="NO"
+fi
+
+if [ $# -eq 7 ]; then
+  printf "Immediate build not required.  Creating ${1}/${2}/${3}/build file\n"
+  if [ ! -d ${1}/${2}/${3} ]; then
+    mkdir -p ${1}/${2}/${3}
+  fi
+elif [ $# -eq 8 ]; then
+  IMMEDIATE="YES"
+  if [ ! -d ${1}/${2}/${3} ]; then
+    mkdir -p ${1}/${2}/${3}
+  fi
+else
+  show_help
+  exit 1
+fi
+
+if [ ${6} == "NONE" ]; then
+  BUILD_OPTIONS="s|_BUILD_OPTIONS_||g"
+else
+  BUILD_OPTIONS_SUB=`echo ${6} | tr ":" " "`
+  BUILD_OPTIONS="s|_BUILD_OPTIONS_|${BUILD_OPTIONS_SUB}|g"
+fi
+
+if [ ${7} == "NONE" ]; then
+  DEP_OPTIONS="s/_DEPS_//g"
+else
+  DEP_OPTIONS_SUB=`echo ${7} | tr ":" " "`
+  DEP_OPTIONS="s|_DEPS_|${DEP_OPTIONS_SUB}|g"
+fi
+
+sed -e "s/_SOFTWARE_TYPE_/${1}/g" -e "s/_SOFTWARE_NAME_/${2}/g" -e "s/_SOFTWARE_VER_/${3}/g" -e "s/_BUNDLE_NAME_/${4}/g" -e "s/_SOURCE_DIR_/${5}/g" -e "${BUILD_OPTIONS}" -e "${DEP_OPTIONS}" build-template.script > ${1}/${2}/${3}/build
+chmod +x ${1}/${2}/${3}/build
+
+if [ ! -z ${IMMEDIATE} ]; then
+  printf "Immediate build requested\n"
+  cd /home/nsg/swbuilder/cluster/build-scripts/new-world/${1}/${2}/${3}
+  ./build
+fi

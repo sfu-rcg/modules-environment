@@ -1,0 +1,2 @@
+CORE Module-Environment 3.2.10 modules-3.2.10.tar.bz2 modules-3.2.10 '--disable-versioning:--with-module-path=${SOFTWAREBASE}/modulefiles' NONE
+COMPILER OPENMPI 1.6.5-SYSTEM openmpi-1.6.5.tar.bz2 openmpi-1.6.5 '--enable-branch-probabilities:--enable-heterogeneous:--with-hwloc:--with-libnuma:--disable-dlopen:--with-tm' NONE

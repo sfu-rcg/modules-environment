@@ -1,0 +1,8 @@
+#!/bin/bash
+
+rm -f gen_world
+while read line; do
+  echo "./gen_build_script ${line} rebuild" > gen_world
+done < build_parameters
+chmod +x gen_world
+./gen_world

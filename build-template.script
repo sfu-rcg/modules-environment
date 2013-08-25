@@ -1,0 +1,317 @@
+#!/bin/sh
+
+### Functions for use with this script
+
+check_success () {
+
+if [ $? -eq 0 ]; then
+  printf " Successful\n\n"
+else
+  printf " Failed! Dying\n\n"
+  exit 1
+fi
+}
+
+# determine operating system (Linux, SunOS, OS X etc)
+OS=`facter kernel`
+
+# get distribution (CentOS, RedHat, SunOS, Darwin)
+OSDISTRO=`facter operatingsystem`
+
+# get architecture (i386, x86_64)
+OSPLAT=`facter architecture`
+
+# For gertain distros we need different information
+# to determine version numbers so abstract that out
+case $OSDISTRO in
+  CentOS|RedHat)
+    OSDISTRO="RHEL"
+    OSVER=`facter lsbmajdistrelease`
+    PLATFORM="${OS}/${OSDISTRO}/${OSVER}/${OSPLAT}"
+    ;;
+  Debian|Ubuntu)
+    OSVER=`facter operatingsystemrelease`
+    PLATFORM="${OS}/${OSDISTRO}/${OSVER}/${OSPLAT}"
+    ;;
+  Darwin)
+    OSVER=`facter macosx_productversion_major`
+    PLATFORM="${OSDISTRO}/${OSVER}/${OSPLAT}"
+    ;;
+  *)
+    printf "You're OS platform (${OSDISTRO})is not currently supported\n"
+    exit 1
+    ;;
+esac
+
+printf "Building for ${PLATFORM}\n"
+
+### This script automates the build of the Modules Environment
+### suite for use in building on the cluster.
+
+BZ2TAR="tar -jxf"
+GZTAR="tar -zxf"
+
+# where to find tarballs
+TARBASE="/hpc/software/tarballs"
+
+# can be something like ${SOFTWARE_TYPE}, LIB, TOOLKIT, etc
+SOFTWARE_TYPE="_SOFTWARE_TYPE_"
+
+# name of the package we are building.  i.e. gnuplot, gnu-compilers, etc
+SOFTWARE="_SOFTWARE_NAME_"
+
+# version of software we are building
+SOFTWARE_VER="_SOFTWARE_VER_"
+
+SOFTWARE_DESCRIPTION="_SOFTWARE_NAME_ version ${SOFTWARE_VER}"
+
+# the full name of the source code package.  i.e gcc-4.5.1.tar.bz2, blas.tgz, boost_1_46_1.tar.bz2
+BUNDLE_NAME="_BUNDLE_NAME_"
+
+# uncompressed source directory name.  If this is a new package
+# you likely should have tried to decompress it before trying to
+# build a template for it DUMMY!
+SOURCE_DIR="_SOURCE_DIR_"
+
+# where software should be built
+SRCBASE="/local-scratch/swbuilder/$PLATFORM"
+BUILDDIR="${SRCBASE}/${SOURCE_DIR}"
+
+# where software should be installed
+SOFTWAREBASE="/hpc/software/$PLATFORM"
+
+# List of modules this software depends on
+DEPENDENCIES="_DEPS_"
+
+# where are all build scripts located
+SCRIPT_BASE_DIR="/home/nsg/swbuilder/cluster/build-scripts/new-world"
+
+# keep record of the script directory in order to save logs
+SCRIPT_DIR="$PWD"
+BUILD_SCRIPT_HOME_DIR="/home/nsg/swbuilder/cluster/build-scripts"
+LD_RUN_PATH="${SOFTWAREBASE}/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}"
+
+if [ ! -d ${SCRIPT_DIR}/logs ]; then
+  mkdir -p ${SCRIPT_DIR}/logs
+fi
+
+check_module () {
+  module avail
+  if [ $? -eq 0 ]; then
+    printf " Modules already available\n\n"
+  else
+    printf " Loading Modules!\n\n"
+    . /hpc/software/${PLATFORM}/CORE/Module-Environment/3.2.10/Modules/init/bash
+    check_success
+  fi
+}
+
+
+(
+if [ $skipModule == "YES" ]; then
+  printf "Not Building a Module"
+else
+check_module
+
+# here loop over dependencies and issue module load $DEPENDENCY
+# if the dependency hasn't been installed, try to build it first
+for DEP in $DEPENDENCIES; do
+  if [ -d $SOFTWAREBASE/${DEP} ]; then
+    MODULE_EXIST_FLAG=`module avail 2>&1 | egrep $DEP`
+  else
+    printf "There is no ${SOFTWAREBASE}/${DEP}\n"
+    printf "Looking for a build script in ${SCRIPT_BASE_DIR}/${DEP}\n"
+    if [ -f ${SCRIPT_BASE_DIR}/${DEP}/build ]; then
+      printf "Build script found!\n"
+      printf "Building Dependancy ${SCRIPT_BASE_DIR}/${DEP}\n"
+      cd ${SCRIPT_BASE_DIR}/${DEP}
+      ./build
+    else
+      printf "Build script not found...\n"
+      exit 1
+    fi
+    MODULE_EXIST_FLAG=
+  fi
+
+  pushd . &> /dev/null
+  if [ -z "$MODULE_EXIST_FLAG" ]; then
+    cd $BUILD_SCRIPT_HOME_DIR
+
+    BUILD_DIR_TYPE=`ls | egrep -i "^\`echo $DEP | cut -d/ -f1\`$"`
+    if [ -z "BUILD_DIR_TYPE" ]; then
+      printf "Cannot find this type of module in build directory for dependency $DEP. Please build $DEP before this software. Dying\n" 
+      exit 1
+    fi
+
+    cd $BUILD_DIR_TYPE
+    BUILD_DIR=`ls | egrep -i "^\`echo $DEP | cut -d/ -f2\`$"`
+    if [ -z "$BUILD_DIR" ]; then
+      printf "Cannot find the build directory for dependency $DEP. Please build $DEP before this software. Dying\n"
+      exit 1
+    fi 
+
+    cd $BUILD_DIR
+    BUILD_SCRIPT=`ls | egrep -i "\`echo $DEP | cut -d/ -f3\`"`
+    if [ -z "$BUILD_SCRIPT" ]; then
+      printf "Cannot find the build script for the version of dependency $DEP in $BUILD_DIR."
+      printf "Please build $DEP before this software. Dying\n"
+      exit 1
+    fi
+
+    ./$BUILD_SCRIPT
+
+  fi
+
+  MODULE_EXIST_FLAG=`module avail 2>&1 | egrep $DEP`
+  if [ -z "$MODULE_EXIST_FLAG" ]; then
+    printf "Build dependency $DEP failed. Please build $DEP before this software. Dying\n"
+    exit 1
+  fi
+
+  popd &> /dev/null
+  module load $DEP
+done 
+fi
+
+# test if we're a hyperthreaded CPU.  If we are
+# only run on the number of physical cores and
+# not the logical ones
+HT=`grep -i "physical id" /proc/cpuinfo |uniq |wc -l`
+if [ ${HT} -gt 0 ]; then
+  CPUS=`grep -i "physical id" /proc/cpuinfo |uniq |wc -l`
+else
+  CPUS=`grep -i processor /proc/cpuinfo |wc -l`
+fi
+
+PKGS=${BUNDLE_NAME}
+
+
+BUILDPARAMS="../${SOURCE_DIR}/configure --prefix=${SOFTWAREBASE}/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER} _BUILD_OPTIONS_"
+
+## Check to see if /hpc/software/tarballs has the files
+## that we need to begin working.
+
+if [ -d $TARBASE ]; then
+  echo "$TARBASE available. Proceeding"
+  echo ""
+else
+  echo "$TARBASE missing. Dying!"
+  echo ""
+  exit 1
+fi
+
+## Check to see if /hpc/software/source stuff exists
+## We decompress here so it's necessary
+
+for DIR in $SRCBASE $BUILDDIR; do
+  if [ -d $DIR ]; then
+    echo "$DIR available. Proceeding"
+    echo ""
+  else
+    echo -n "$DIR not available. Attempting to create..."
+    mkdir -p $DIR
+    check_success
+  fi
+done
+echo "Performing pre-build clean up of..."
+for PKG in ${SOFTWARE}; do
+  ## ensure we have a clean space to build
+  ## in case we're rebuilding these packages
+  echo -n "$SRCBASE/$PKG..."
+  rm -rf $SRCBASE/$PKG
+  check_success
+  sync; sync; sync
+done
+
+## Check to see if defined packages exist
+## If they do decompress them
+
+echo -n "Moving to $SRCBASE..."
+cd $SRCBASE
+check_success
+
+for SOFT in $PKGS; do
+  if [ -f $TARBASE/$SOFT ]; then
+    echo "$TARBASE/$SOFT available. Proceeding..."
+    FILETYPE=`file $TARBASE/$SOFT|awk '{print $2}'`
+    if [ $FILETYPE = "bzip2" ]; then
+      echo -n "Decompressing $FILETYPE file $TARBASE/$SOFT..."
+      $BZ2TAR $TARBASE/$SOFT
+      check_success
+    elif [ $FILETYPE = "gzip" ]; then echo -n "Decompressing $FILETYPE file $TARBASE/$SOFT..."
+      $GZTAR $TARBASE/$SOFT
+      check_success
+    else
+      echo "Don't know how to work with file type ${FILETYPE}"
+      exit 1
+    fi
+  else
+    echo "$SOFT missing. Dying!"
+    echo ""
+    exit 1
+  fi
+done
+
+echo ""
+echo ""
+
+## Prepare the build environment
+
+echo "Preparing the build environment"
+cd $SRCBASE/${SOURCE_DIR}
+check_success
+
+## Okay time to start configuring
+
+echo "Configuring ${SOFTWARE} with the following build parameters:"
+echo $BUILDPARAMS
+echo ""
+echo "The following modules have been loaded"
+if [ $skipModule != "YES" ]; then
+  module list
+fi
+echo ""
+echo "Starting build now..."
+echo ""
+
+echo -n "Changing to $BUILDDIR..."
+cd $BUILDDIR
+check_success
+
+echo "Running configure..."
+$BUILDPARAMS
+check_success
+
+echo "Running make..."
+make -j ${CPUS}
+make install
+check_success
+
+if [ $skipModule == "YES" ]; then
+  exit 0
+fi
+
+if [ ! -d /hpc/software/${PLATFORM}/modulefiles/${SOFTWARE_TYPE}/${SOFTWARE} ]; then
+  mkdir -p /hpc/software/${PLATFORM}/modulefiles/${SOFTWARE_TYPE}/${SOFTWARE}
+fi
+
+cat <<EOF > /hpc/software/${PLATFORM}/modulefiles/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER} 
+#%Module1.0
+## ${SOFTWARE}
+##
+
+module-whatis    "${SOFTWARE_DESCRIPTION}"
+EOF
+for DEP in $DEPENDENCIES; do
+cat <<EOF >> /hpc/software/${PLATFORM}/modulefiles/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}
+module load ${DEP}
+EOF
+done
+
+cat <<EOF >> /hpc/software/${PLATFORM}/modulefiles/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}
+prepend-path PATH $SOFTWAREBASE/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}/bin
+prepend-path LD_LIBRARY_PATH $SOFTWAREBASE/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}/lib64:$SOFTWAREBASE/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}/lib
+prepend-path INCLUDE $SOFTWAREBASE/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}/include
+prepend-path MANPATH $SOFTWAREBASE/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}/man
+EOF
+echo "Installation of ${SOFTWARE} ready on `hostname` for $PLATFORM" ) 2>&1 |tee ${SCRIPT_DIR}/logs/${SOFTWARE}-${SOFTWARE_VER}-${OSPLAT}.log
