@@ -4,7 +4,7 @@ show_help () {
 
 printf "./gen_build_script SOFTWARE_TYPE SOFTWARE_NAME SOFTWARE_VER BUNDLE_NAME SOURCE_DIR BUILD_OPTIONS DEPENDENCIES \n\n"
 printf "For Example:\n"
-printf " ./gen_build_script LANG PYTHON 2.7.4 Python-2.7.4.tar.bz2 Python-2.7.4 '--with-option:--with-other-option' \"LANG\/COMPILER\/GNU\/4.8.0:LANG\/PYTHON\/2.7.4\" \n"
+printf " ./gen_build_script LANG PYTHON 2.7.4 Python-2.7.4.tar.bz2 Python-2.7.4 '--with-option:--with-other-option' \"LANG/COMPILER/GNU/4.8.0:LANG/PYTHON/2.7.4\" \n"
 }
 
 #SOFTWARE_TYPE="_SOFTWARE_TYPE_"
@@ -12,10 +12,18 @@ printf " ./gen_build_script LANG PYTHON 2.7.4 Python-2.7.4.tar.bz2 Python-2.7.4 
 #SOFTWARE_VER="_SOFTWARE_VER_"
 #BUNDLE_NAME="_BUNDLE_NAME_"
 #SOURCE_DIR="_SOURCE_DIR_"
+#BUILD_OPTIONS="_BUILD_OPTIONS_"
+#DEPENDENCIES="_DEPS_"
 
+# If we're a CORE application they should be built immediately
+# However, if we're the Modules Environment don't attempt to
+# work with the modules command at all and skip any attempts
+# to module "avail|load|switch" etc
 if [[ ${1} == "CORE" && ${2} == "Module-Environment" ]]; then
   export skipModule="YES"
   IMMEDIATE="YES"
+# other CORE modules shouldn't create a module files
+# eg. Torque, Maui
 elif [ ${1} == "CORE" ]; then
   export skipModule="YES"
   IMMEDIATE="YES"
@@ -23,21 +31,29 @@ else
   export skipModule="NO"
 fi
 
+# We can just generate the scripts if we want
 if [ $# -eq 7 ]; then
   printf "Immediate build not required.  Creating ${1}/${2}/${3}/build file\n"
   if [ ! -d ${1}/${2}/${3} ]; then
     mkdir -p ${1}/${2}/${3}
   fi
-elif [ $# -eq 8 ]; then
+
+# if we specify "rebuild" as a final option we should build
+# the software immedately
+elif [[ $# -eq 8 && ${8} == "rebuild" ]]; then
   IMMEDIATE="YES"
   if [ ! -d ${1}/${2}/${3} ]; then
     mkdir -p ${1}/${2}/${3}
   fi
 else
+  printf "\nYou specified ${8}.  The only option supported here is rebuild\n\n"
   show_help
   exit 1
 fi
 
+# Accept standard autoconf/configure options if specified
+# we use colon separation and translate them to spaces
+# this gets around "incorrect number of arguments" issues
 if [ ${6} == "NONE" ]; then
   BUILD_OPTIONS="s|_BUILD_OPTIONS_||g"
 else
@@ -45,6 +61,8 @@ else
   BUILD_OPTIONS="s|_BUILD_OPTIONS_|${BUILD_OPTIONS_SUB}|g"
 fi
 
+# include ability to specify module dependancies
+# NOTE: ORDERING IS IMPORTANT
 if [ ${7} == "NONE" ]; then
   DEP_OPTIONS="s/_DEPS_//g"
 else
@@ -52,9 +70,15 @@ else
   DEP_OPTIONS="s|_DEPS_|${DEP_OPTIONS_SUB}|g"
 fi
 
+# Translate all command line arguments into a file build script
+# This uses the build-template.script as the template and so if
+# you ever need to regenerate the environment and push script
+# fixes it becomes really easy, as does being able to rebuild
+# the whole environment
 sed -e "s/_SOFTWARE_TYPE_/${1}/g" -e "s/_SOFTWARE_NAME_/${2}/g" -e "s/_SOFTWARE_VER_/${3}/g" -e "s/_BUNDLE_NAME_/${4}/g" -e "s/_SOURCE_DIR_/${5}/g" -e "${BUILD_OPTIONS}" -e "${DEP_OPTIONS}" build-template.script > ${1}/${2}/${3}/build
 chmod +x ${1}/${2}/${3}/build
 
+# If rebuild is specified then generate the script and execute it
 if [ ! -z ${IMMEDIATE} ]; then
   printf "Immediate build requested\n"
   cd /home/nsg/swbuilder/cluster/build-scripts/new-world/${1}/${2}/${3}
