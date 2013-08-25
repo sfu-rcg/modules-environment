@@ -7,6 +7,8 @@ printf "For Example:\n"
 printf " ./gen_build_script LANG PYTHON 2.7.4 Python-2.7.4.tar.bz2 Python-2.7.4 '--with-option:--with-other-option' \"LANG/COMPILER/GNU/4.8.0:LANG/PYTHON/2.7.4\" \n"
 }
 
+eval LAST_ARGUMENT=\${$#}
+
 #SOFTWARE_TYPE="_SOFTWARE_TYPE_"
 #SOFTWARE="_SOFTWARE_NAME_"
 #SOFTWARE_VER="_SOFTWARE_VER_"
@@ -40,13 +42,13 @@ if [ $# -eq 7 ]; then
 
 # if we specify "rebuild" as a final option we should build
 # the software immedately
-elif [[ $# -eq 8 && ${8} == "rebuild" ]]; then
+elif [ ${LAST_ARGUMENT} == "rebuild" ]; then
   IMMEDIATE="YES"
   if [ ! -d ${1}/${2}/${3} ]; then
     mkdir -p ${1}/${2}/${3}
   fi
 else
-  printf "\nYou specified ${8}.  The only option supported here is rebuild\n\n"
+  printf "\nYou specified ${LAST_ARGUMENT}.  The only option supported here is rebuild\n\n"
   show_help
   exit 1
 fi
