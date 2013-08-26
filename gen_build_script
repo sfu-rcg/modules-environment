@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export SCRIPT_BASE_DIR="/home/fas3/jpeltier/git-repos/modules-environment"
+
 show_help () {
 
 printf "./gen_build_script SOFTWARE_TYPE SOFTWARE_NAME SOFTWARE_VER BUNDLE_NAME SOURCE_DIR BUILD_OPTIONS DEPENDENCIES \n\n"
@@ -22,15 +24,15 @@ eval LAST_ARGUMENT=\${$#}
 # work with the modules command at all and skip any attempts
 # to module "avail|load|switch" etc
 if [[ ${1} == "CORE" && ${2} == "Module-Environment" ]]; then
-  export skipModule="YES"
+  SKIP_MODULE="s/_SKIP_MODULE_/skipModule=YES/g"
   IMMEDIATE="YES"
 # other CORE modules shouldn't create a module files
 # eg. Torque, Maui
 elif [ ${1} == "CORE" ]; then
-  export skipModule="YES"
+  SKIP_MODULE="s/_SKIP_MODULE_/skipModule='YES'/g"
   IMMEDIATE="YES"
 else
-  export skipModule="NO"
+  SKIP_MODULE="/_SKIP_MODULE_/d"
 fi
 
 # We can just generate the scripts if we want
@@ -77,12 +79,12 @@ fi
 # you ever need to regenerate the environment and push script
 # fixes it becomes really easy, as does being able to rebuild
 # the whole environment
-sed -e "s/_SOFTWARE_TYPE_/${1}/g" -e "s/_SOFTWARE_NAME_/${2}/g" -e "s/_SOFTWARE_VER_/${3}/g" -e "s/_BUNDLE_NAME_/${4}/g" -e "s/_SOURCE_DIR_/${5}/g" -e "${BUILD_OPTIONS}" -e "${DEP_OPTIONS}" build-template.script > ${1}/${2}/${3}/build
+sed -e "s/_SOFTWARE_TYPE_/${1}/g" -e "s/_SOFTWARE_NAME_/${2}/g" -e "s/_SOFTWARE_VER_/${3}/g" -e "s/_BUNDLE_NAME_/${4}/g" -e "s/_SOURCE_DIR_/${5}/g" -e "${BUILD_OPTIONS}" -e "${DEP_OPTIONS}" -e "${SKIP_MODULE}" build-template.script > ${1}/${2}/${3}/build
 chmod +x ${1}/${2}/${3}/build
 
 # If rebuild is specified then generate the script and execute it
 if [ ! -z ${IMMEDIATE} ]; then
   printf "Immediate build requested\n"
-  cd /home/nsg/swbuilder/cluster/build-scripts/new-world/${1}/${2}/${3}
+  cd ${SCRIPT_BASE_DIR}/${1}/${2}/${3}
   ./build
 fi

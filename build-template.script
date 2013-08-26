@@ -83,12 +83,13 @@ SOFTWAREBASE="/hpc/software/$PLATFORM"
 # List of modules this software depends on
 DEPENDENCIES="_DEPS_"
 
-# where are all build scripts located
-SCRIPT_BASE_DIR="/home/nsg/swbuilder/cluster/build-scripts/new-world"
-
 # keep record of the script directory in order to save logs
 SCRIPT_DIR="$PWD"
 BUILD_SCRIPT_HOME_DIR="/home/nsg/swbuilder/cluster/build-scripts"
+
+# determine if we should skip the building of a module
+_SKIP_MODULE_
+
 LD_RUN_PATH="${SOFTWAREBASE}/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}"
 
 if [ ! -d ${SCRIPT_DIR}/logs ]; then
@@ -108,8 +109,8 @@ check_module () {
 
 
 (
-if [ $skipModule == "YES" ]; then
-  printf "Not Building a Module"
+if [ ! -z $skipModule ]; then
+  printf "Not Building a Module\n"
 else
 check_module
 
@@ -267,7 +268,7 @@ echo "Configuring ${SOFTWARE} with the following build parameters:"
 echo $BUILDPARAMS
 echo ""
 echo "The following modules have been loaded"
-if [ $skipModule != "YES" ]; then
+if [ ! -z $skipModule ]; then
   module list
 fi
 echo ""
@@ -287,7 +288,7 @@ make -j ${CPUS}
 make install
 check_success
 
-if [ $skipModule == "YES" ]; then
+if [ ! -z $skipModule ]; then
   exit 0
 fi
 
