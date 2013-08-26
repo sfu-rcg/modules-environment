@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export SCRIPT_BASE_DIR="/home/fas3/jpeltier/git-repos/modules-environment"
+export SCRIPT_BASE_DIR="/home/nsg/swbuilder/cluster/build-scripts/modules-environment"
 
 show_help () {
 
