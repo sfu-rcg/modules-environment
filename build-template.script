@@ -315,4 +315,4 @@ prepend-path LD_LIBRARY_PATH $SOFTWAREBASE/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWA
 prepend-path INCLUDE $SOFTWAREBASE/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}/include
 prepend-path MANPATH $SOFTWAREBASE/${SOFTWARE_TYPE}/${SOFTWARE}/${SOFTWARE_VER}/man
 EOF
-echo "Installation of ${SOFTWARE} ready on `hostname` for $PLATFORM" ) 2>&1 |tee ${SCRIPT_DIR}/logs/${SOFTWARE}-${SOFTWARE_VER}-${OSPLAT}.log
+echo "Installation of ${SOFTWARE} ready on `hostname` for $PLATFORM" ) 2>&1 |tee ${SCRIPT_DIR}/logs/${SOFTWARE}-${SOFTWARE_VER}-${OS}-${OSDISTRO}-${OSVER}-${OSPLAT}.log
