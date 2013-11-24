@@ -50,6 +50,7 @@ printf "Building for ${PLATFORM}\n"
 
 BZ2TAR="tar -jxf"
 GZTAR="tar -zxf"
+XZTAR="tar -Jxf"
 
 # where to find tarballs
 TARBASE="/hpc/software/tarballs"
@@ -242,6 +243,11 @@ for SOFT in $PKGS; do
     elif [ $FILETYPE = "gzip" ]; then echo -n "Decompressing $FILETYPE file $TARBASE/$SOFT..."
       $GZTAR $TARBASE/$SOFT
       check_success
+    elif [ $FILETYPE = "xz" ]; then
+      echo -n "Decompressing $FILETYPE file $TARBASE/$SOFT..."
+      $XZTAR $TARBASE/$SOFT
+      check_success
+    elif [ $FILETYPE = "gzip" ]; then echo -n "Decompressing $FILETYPE file $TARBASE/$SOFT..."
     else
       echo "Don't know how to work with file type ${FILETYPE}"
       exit 1
