@@ -75,8 +75,8 @@ BUNDLE_NAME="_BUNDLE_NAME_"
 SOURCE_DIR="_SOURCE_DIR_"
 
 # where software should be built
-SRCBASE="/local-scratch/swbuilder/$PLATFORM"
-BUILDDIR="${SRCBASE}/${SOURCE_DIR}"
+export SRCBASE="/local-scratch/swbuilder/$PLATFORM"
+export BUILDDIR="${SRCBASE}/${SOURCE_DIR}"
 
 # where software should be installed
 SOFTWAREBASE="/hpc/software/$PLATFORM"
@@ -285,9 +285,13 @@ echo -n "Changing to $BUILDDIR..."
 cd $BUILDDIR
 check_success
 
+_PRE_SCRIPT_
+
 echo "Running configure..."
 $BUILDPARAMS
 check_success
+
+_POST_SCRIPT_
 
 echo "Running make..."
 make -j ${CPUS}
